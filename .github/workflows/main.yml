@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main  # 只有 main 分支
-  workflow_dispatch:      # 允许手 动触发
+  workflow_dispatch:      # 允许手动触发
 
 jobs:
   next-build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}  # 仅在手动触发时运行
     runs-on: ubuntu-latest
     container: node:lts
     steps:
@@ -24,7 +25,7 @@ jobs:
             public
           retention-days: 7
 
-    docker-push:
+  docker-push:
     needs: next-build
     runs-on: ubuntu-latest
     steps:
