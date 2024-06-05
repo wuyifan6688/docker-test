@@ -8,7 +8,6 @@ on:
 
 jobs:
   next-build:
-    if: ${{ github.event_name == 'workflow_dispatch' }}  # 仅在手动触发时运行
     runs-on: ubuntu-latest
     container: node:lts
     steps:
