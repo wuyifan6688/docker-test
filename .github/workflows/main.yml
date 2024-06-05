@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main  # 只有 main 分支
-  workflow_dispatch:      # 允许手动触发
+  workflow_dispatch:      # 允许手 动触发
 
 jobs:
   next-build:
