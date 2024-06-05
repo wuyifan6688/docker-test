@@ -1,0 +1,73 @@
+name: Build & Publish
+
+on:
+  push:
+    branches:
+      - main  # 只有 main 分支
+  workflow_dispatch:      # 允许手动触发
+
+jobs:
+  next-build:
+    if: ${{ github.event_name == 'workflow_dispatch' }}  # 仅在手动触发时运行
+    runs-on: ubuntu-latest
+    container: node:lts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - run: npm ci
+      - run: npm run build
+      - name: Upload Next build
+        uses: actions/upload-artifact@v2
+        with:
+          name: build
+          path: |
+            .next
+            public
+          retention-days: 7
+
+  docker-push:
+    needs: next-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download next build
+        uses: actions/download-artifact@v2
+        with:
+          name: build
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.CR_PAT }}
+      - name: Build and Push Docker Images
+        run: |
+          export CURRENT_BRANCH=${GITHUB_REF#refs/heads/}
+          export TAG=$([[ $CURRENT_BRANCH == "main" ]] && echo "latest" || echo $CURRENT_BRANCH)
+          export GITHUB_REF_IMAGE=ghcr.io/$GITHUB_REPOSITORY:$GITHUB_SHA
+          export GITHUB_BRANCH_IMAGE=ghcr.io/$GITHUB_REPOSITORY:$TAG
+          docker build -t $GCR_IMAGE -t $GITHUB_REF_IMAGE -t $GITHUB_BRANCH_IMAGE .
+          echo "Pushing Image to GitHub Container Registry"
+          docker push $GITHUB_REF_IMAGE
+          docker push $GITHUB_BRANCH_STOCK_IMAGE
+
+  deploy-to-production:
+    if: github.ref == 'refs/heads/main'
+    needs: docker-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Remote Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}  # 35.201.157.71
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            echo "Pulling latest image"
+            docker pull ghcr.io/$GITHUB_REPOSITORY:$TAG
+            echo "Stopping existing container"
+            docker stop my-app || true
+            docker rm my-app || true
+            echo "Running new container"
+            docker run -d --name my-app -p 80:3000 ghcr.io/$GITHUB_REPOSITORY:$TAG
