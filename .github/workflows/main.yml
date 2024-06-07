@@ -66,12 +66,18 @@ jobs:
             echo "Logging in to GitHub Container Registry"
             echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            echo "Pulling latest image"
-            docker pull ghcr.io/wuyifan6688/docker-test:main
+ 
             
             echo "Stopping existing container"
             docker stop my-app || true
             docker rm my-app || true
+
+
+            echo "Removing useless images"
+            docker image prune -a --force
+            
+            echo "Pulling latest image"
+            docker pull ghcr.io/wuyifan6688/docker-test:main
             
             echo "Running new container"
             docker run -d --name my-app -p 80:3000 ghcr.io/wuyifan6688/docker-test:main
